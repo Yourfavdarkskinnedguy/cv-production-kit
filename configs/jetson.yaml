@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# configs/jetson.yaml
+# Jetson Orin NX / Jetson AGX Orin optimised configuration
+#
+# Key differences from default.yaml:
+#   - TensorRT backend with FP16 for maximum Jetson throughput
+#   - Smaller buffer (less RAM on Jetson)
+#   - Reduced warmup iters (faster start)
+#   - max_age reduced (30fps expected, tighter tracking)
+#   - Monitoring thresholds tuned for variable lighting on edge deployments
+# ─────────────────────────────────────────────────────────────────────────────
+
+camera:
+  source: 0           # CSI camera or USB webcam. RTSP also works.
+  fps: 30.0
+  source_id: "jetson_cam_00"
+  max_retries: 20     # More retries — edge cameras can be flaky
+
+buffer:
+  maxsize: 3          # Smaller — Jetson has less RAM than a workstation
+  drop_policy: "oldest"
+
+inference:
+  # TensorRT engine compiled for this device.
+  # Build it first: python scripts/export_tensorrt.py --onnx models/yolov8n.onnx
+  model_path: "models/yolov8n_jetson_fp16.engine"
+  backend: "tensorrt"
+  input_size: [640, 640]
+  confidence_threshold: 0.40
+  nms_threshold: 0.45
+  class_names:
+    - person
+    - bicycle
+    - car
+    - motorbike
+    - bus
+    - truck
+  device: "cuda"
+  fp16: true
+  warmup_iters: 5     # TRT engines warm up faster than PyTorch
+
+tracking:
+  iou_threshold: 0.30
+  max_age: 25         # Slightly tighter on Jetson — 25 frames ≈ 0.83s at 30fps
+  min_hits: 3
+  class_sensitive: true
+  process_noise: 1.0
+  measure_noise: 1.0
+
+output:
+  visualize: true
+  result_queue_size: 6
+
+monitoring:
+  enabled: true
+  rolling_window_frames: 300   # Smaller window — results update faster
+  confidence_threshold: 0.65   # Slightly lower — edge lighting can be harsher
+  entropy_threshold: 1.8
+  channel_drift_threshold: 20.0
+  log_interval_frames: 200
+  alert_cooldown_s: 60.0
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file: "logs/jetson_pipeline.log"
