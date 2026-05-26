@@ -1,0 +1,117 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — cv-production-kit
+#
+# Services:
+#   pipeline  — main CV inference pipeline
+#   monitor   — optional Grafana + Prometheus stack for metrics dashboards
+#
+# Start pipeline only:
+#   docker compose up pipeline
+#
+# Start with monitoring stack:
+#   docker compose --profile monitoring up
+#
+# Stop all:
+#   docker compose down
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+
+  # ── Main pipeline ────────────────────────────────────────────────────────────
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cv-production-kit:latest
+    container_name: cv_pipeline
+
+    # GPU access — requires NVIDIA Container Toolkit installed on the host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Mount project directories so you can swap models without rebuilding
+    volumes:
+      - ./models:/app/models          # model weights
+      - ./configs:/app/configs        # config files
+      - ./data:/app/data              # input videos / test images
+      - ./logs:/app/logs              # pipeline logs
+
+    environment:
+      - CV_SOURCE=${CV_SOURCE:-0}
+      - CV_CONFIG=${CV_CONFIG:-configs/default.yaml}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+
+    # Pass USB camera device into container (webcam index 0)
+    devices:
+      - /dev/video0:/dev/video0
+
+    # Keep running on crash — important for 24/7 deployments
+    restart: unless-stopped
+
+    command: >
+      python scripts/run_pipeline.py
+      --config ${CV_CONFIG:-configs/default.yaml}
+      --no-display
+      --log-file logs/pipeline.log
+
+    # Health check — restart if pipeline crashes silently
+    healthcheck:
+      test: ["CMD", "python", "-c", "from cv_kit import Pipeline; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    networks:
+      - cv_net
+
+  # ── Prometheus — metrics scraping ────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: cv_prometheus
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - cv_net
+    restart: unless-stopped
+
+  # ── Grafana — dashboards ──────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: cv_grafana
+    profiles: ["monitoring"]
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - cv_net
+    restart: unless-stopped
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
+volumes:
+  prometheus_data:
+  grafana_data:
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  cv_net:
+    driver: bridge
