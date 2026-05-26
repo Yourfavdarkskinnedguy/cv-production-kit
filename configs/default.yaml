@@ -1,0 +1,220 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# cv-production-kit — default configuration
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Override any value by:
+#   1. Creating a custom yaml and passing it to Pipeline.from_config()
+#   2. Passing individual values as CLI flags to scripts/run_pipeline.py
+#   3. Setting environment variables (see docs/env_vars.md)
+#
+# All paths are relative to the project root unless absolute.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Camera / source ───────────────────────────────────────────────────────────
+camera:
+  # Integer for webcam index, string for RTSP URL or video file path.
+  #   0          → first USB/built-in webcam
+  #   "rtsp://192.168.1.100:554/stream1"  → IP camera
+  #   "data/test_video.mp4"               → local file
+  source: 0
+
+  # Expected camera framerate. Used only for buffer sizing and monitoring —
+  # the pipeline does not enforce this rate, it reads as fast as the source
+  # allows.
+  fps: 30.0
+
+  # Identifier shown in logs and result metadata. Useful in multi-camera setups.
+  source_id: "cam_01"
+
+
+# ── Frame buffer ─────────────────────────────────────────────────────────────
+buffer:
+  # Maximum frames held in the buffer between camera and inference threads.
+  # 4 ≈ 133ms backlog at 30fps — enough to absorb brief spikes without
+  # accumulating stale frames.
+  maxsize: 4
+
+  # "oldest" — evict the oldest frame when full (keeps data fresh, default)
+  # "newest" — drop the incoming frame (preserves temporal ordering)
+  drop_policy: "oldest"
+
+
+# ── Inference engine ─────────────────────────────────────────────────────────
+inference:
+  # Path to your model weights.
+  #   YOLOv8:   "models/yolov8n.pt"
+  #   ONNX:     "models/yolov8n.onnx"
+  #   TensorRT: "models/yolov8n_fp16.engine"
+  model_path: "models/yolov8n.pt"
+
+  # Backend to use for inference.
+  #   "yolo"      → Ultralytics — easiest, good for prototyping
+  #   "onnx"      → ONNX Runtime — portable, ~1.5× faster than yolo
+  #   "tensorrt"  → TensorRT — maximum throughput, NVIDIA only
+  backend: "yolo"
+
+  # Model input resolution. Must match the resolution the model was trained
+  # or exported at. [640, 640] is the YOLOv8 default.
+  input_size: [640, 640]
+
+  # Detections below this confidence score are discarded.
+  # Higher = fewer false positives. Lower = higher recall.
+  confidence_threshold: 0.40
+
+  # IoU threshold for Non-Maximum Suppression.
+  # Overlapping boxes above this threshold are merged.
+  nms_threshold: 0.45
+
+  # Class names matching your model's output indices.
+  # Leave empty [] to use integer indices.
+  # For COCO-trained models use the list below.
+  class_names:
+    - person
+    - bicycle
+    - car
+    - motorbike
+    - aeroplane
+    - bus
+    - train
+    - truck
+    - boat
+    - traffic light
+    - fire hydrant
+    - stop sign
+    - parking meter
+    - bench
+    - bird
+    - cat
+    - dog
+    - horse
+    - sheep
+    - cow
+    - elephant
+    - bear
+    - zebra
+    - giraffe
+    - backpack
+    - umbrella
+    - handbag
+    - tie
+    - suitcase
+    - frisbee
+    - skis
+    - snowboard
+    - sports ball
+    - kite
+    - baseball bat
+    - baseball glove
+    - skateboard
+    - surfboard
+    - tennis racket
+    - bottle
+    - wine glass
+    - cup
+    - fork
+    - knife
+    - spoon
+    - bowl
+    - banana
+    - apple
+    - sandwich
+    - orange
+    - broccoli
+    - carrot
+    - hot dog
+    - pizza
+    - donut
+    - cake
+    - chair
+    - sofa
+    - potted plant
+    - bed
+    - dining table
+    - toilet
+    - tv monitor
+    - laptop
+    - mouse
+    - remote
+    - keyboard
+    - cell phone
+    - microwave
+    - oven
+    - toaster
+    - sink
+    - refrigerator
+    - book
+    - clock
+    - vase
+    - scissors
+    - teddy bear
+    - hair drier
+    - toothbrush
+
+  # Compute device.
+  #   "cuda"  → first available GPU (recommended)
+  #   "cpu"   → CPU inference (slow but always available)
+  #   "0"     → specific GPU by index
+  device: "cuda"
+
+  # Use FP16 (half-precision) inference. ~1.5× faster on modern GPUs with
+  # negligible accuracy loss. Only supported by ONNX and TensorRT backends.
+  fp16: false
+
+  # Number of dummy inferences to run on startup to prime GPU kernels.
+  # The first few inferences are always slower — warmup absorbs this cost
+  # before the camera starts.
+  warmup_iters: 10
+
+
+# ── Object tracking ──────────────────────────────────────────────────────────
+tracking:
+  # Minimum IoU overlap for a detection to be assigned to an existing track.
+  # 0.3 works well for pedestrians. Increase for slow objects with precise
+  # detectors. Decrease for fast-moving objects.
+  iou_threshold: 0.30
+
+  # Frames without a matched detection before a track is deleted.
+  # 30 ≈ 1 second at 30fps. Increase if objects pass behind obstructions.
+  max_age: 30
+
+  # Detections required to confirm a tentative track.
+  # 3 suppresses false-positive tracks from single-frame ghost detections.
+  min_hits: 3
+
+  # Only match detections to tracks of the same class.
+  # Prevents a person track from absorbing a vehicle detection.
+  class_sensitive: true
+
+
+# ── Output ───────────────────────────────────────────────────────────────────
+output:
+  # Draw bounding boxes and track IDs on the result frame.
+  # Disable for maximum throughput (annotated frames cost ~3ms each).
+  visualize: true
+
+  # Maximum results held in the output queue between inference and consumer.
+  result_queue_size: 8
+
+
+# ── Monitoring ───────────────────────────────────────────────────────────────
+monitoring:
+  # Enable confidence drift detection.
+  # Logs a WARNING when 7-day rolling avg confidence drops below the threshold.
+  enabled: true
+
+  # Minimum acceptable average detection confidence.
+  # Below this = possible domain shift (lighting change, camera drift, etc.)
+  confidence_threshold: 0.70
+
+  # Window over which to compute rolling average confidence.
+  rolling_window_frames: 500
+
+  # How often (in frames) to compute and log monitoring stats.
+  log_interval_frames: 300
+
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"           # DEBUG | INFO | WARNING | ERROR
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file: null              # null = stdout only, or e.g. "logs/pipeline.log"
