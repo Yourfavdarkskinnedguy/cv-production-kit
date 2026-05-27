@@ -221,7 +221,7 @@ class FrameBuffer:
     def is_full(self)  -> bool: return self._q.full()
     def __len__(self)  -> int:  return self._q.qsize()
 
-    # ── Internal ──────────────────────────────────
+    # ── Internal ─────────────────────────────────
 
     def _monitor_loop(self, interval: float) -> None:
         while self._running.is_set():
