@@ -1,6 +1,6 @@
 """
 cv_kit/pipeline/frame_buffer.py
-────────────────────────────────
+───────────────────────────────
 Thread-safe bounded frame buffer — decouples camera capture from inference.
 
 DESIGN
