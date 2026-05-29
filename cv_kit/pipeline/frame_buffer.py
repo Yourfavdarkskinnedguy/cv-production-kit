@@ -118,7 +118,7 @@ class FrameBuffer:
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=2.0)
 
-    # ── Producer API ────────────────────
+    # ── Producer API ───────────────────
 
     def put(self, frame: Frame) -> bool:
         """
