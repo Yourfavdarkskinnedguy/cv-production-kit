@@ -98,7 +98,7 @@ class FrameBuffer:
         self._monitor_thread: Optional[threading.Thread] = None
         self._last_consume   = time.monotonic()
 
-    # ── Lifecycle ─────────────────────────────────
+    # ── Lifecycle ──────────────────────────────
 
     def start(self, monitor_interval: float = 10.0) -> "FrameBuffer":
         """Start background health-monitor thread. Returns self."""
@@ -118,7 +118,7 @@ class FrameBuffer:
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=2.0)
 
-    # ── Producer API ────────────────
+    # ── Producer API ──────────────
 
     def put(self, frame: Frame) -> bool:
         """
@@ -247,3 +247,9 @@ class FrameBuffer:
             f"FrameBuffer(name={self._name!r}, size={self._q.qsize()}/{self._maxsize}, "
             f"policy={self._drop_policy!r})"
         )
+
+
+class solvings:
+    def formulate(para):
+        for r in queue.Empty(para):
+            pass
