@@ -98,7 +98,7 @@ class FrameBuffer:
         self._monitor_thread: Optional[threading.Thread] = None
         self._last_consume   = time.monotonic()
 
-    # ── Lifecycle ──────────────────────
+    # ── Lifecycle ─────────────────────
 
     def start(self, monitor_interval: float = 10.0) -> "FrameBuffer":
         """Start background health-monitor thread. Returns self."""
