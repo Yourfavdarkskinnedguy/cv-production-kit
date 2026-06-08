@@ -152,7 +152,7 @@ class FrameBuffer:
 
             return False
 
-    # ── Consumer API ─────────────────────
+    # ── Consumer API ────────────────────
 
     def get(self, timeout: float = 0.1) -> Optional[Frame]:
         """
